@@ -33,55 +33,73 @@ prisma.$on('query', (e) => {
 const router = Router();
 
 router.post("/", async (req, res) => {
-    const { email, password } = req.body
+    const { email, password } = req.body;
 
-    const defaultMesage = "Login ou senha incorretos"
+    const defaultMessage = "Login ou senha incorretos";
 
     if (!email || !password) {
-        res.status(400).json({ error: defaultMesage })
-        return
+        res.status(400).json({ error: defaultMessage });
+        return;
     }
 
-    try{
+    try {
         const user = await prisma.user.findFirst({
-            where: {
-                email
-            }
-        })
+            where: { email },
+        });
 
-        if(user == null){
-            res.status(400).json({ error: defaultMesage })
-            return
+        if (user == null) {
+            res.status(400).json({ error: defaultMessage });
+            return;
         }
 
-        if(bcrypt.compareSync(password, user.password)){
-            const token = jwt.sign({
-                userLogadoId: user.id,
-                userLogadoNome: user.name
-            }, process.env.JWT_KEY as string, {
-                expiresIn: "1h"
-            })
+        if (bcrypt.compareSync(password, user.password)) {
+            const token = jwt.sign(
+                {
+                    userLogadoId: user.id,
+                    userLogadoNome: user.name,
+                },
+                process.env.JWT_KEY as string,
+                {
+                    expiresIn: "1h",
+                }
+            );
 
-            res.status(200).json({ 
+            const previousLogin = user.lastLogin;
+            const currentLogin = new Date();
+
+
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: currentLogin },
+            });
+
+ 
+            const welcomeMessage = previousLogin
+                ? `Bem-vindo ${user.name}. Seu último acesso ao sistema foi em ${previousLogin.toLocaleString()}.`
+                : `Bem-vindo ${user.name}. Este é o seu primeiro acesso ao sistema.`;
+
+            res.status(200).json({
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                token
-             }) 
-    } else{
-        await prisma.log.create({
-            data: {
-                description: `Tentativa acesso inválida`,
-                complement: `Funcionario: ${user.email}`,
-                userId: user.id
-            }
-        })
+                token,
+                message: welcomeMessage,
+            });
+        } else {
+            await prisma.log.create({
+                data: {
+                    description: `Tentativa de acesso inválida`,
+                    complement: `Funcionário: ${user.email}`,
+                    userId: user.id,
+                },
+            });
 
-        res.status(400).json({ error: defaultMesage })
+            res.status(400).json({ error: defaultMessage });
         }
-    } catch(error){
-        res.status(400).json(error)
+    } catch (error) {
+        res.status(400).json(error);
     }
-})
+});
+
 
 export default router;

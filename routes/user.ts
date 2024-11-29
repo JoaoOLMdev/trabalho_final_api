@@ -95,6 +95,49 @@ router.post("/", async (req, res) => {
       res.status(400).json(error)
     }
   })
-  
+
+  router.put("/change-password", async (req, res) => {
+    const { userId, currentPassword, newPassword } = req.body;
+
+    if (!userId || !currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Todos os campos são obrigatórios." });
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: Number(userId) },
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+
+        const isPasswordValid = bcrypt.compareSync(currentPassword, user.password);
+        if (!isPasswordValid) {
+            return res.status(400).json({ error: "Senha atual incorreta." });
+        }
+
+        const validationErrors = validatePassword(newPassword);
+        if (validationErrors.length > 0) {
+            return res.status(400).json({ error: validationErrors.join("; ") });
+        }
+
+        const salt = bcrypt.genSaltSync(12);
+        const hashedPassword = bcrypt.hashSync(newPassword, salt);
+
+        await prisma.user.update({
+            where: { id: Number(userId) },
+            data: { password: hashedPassword },
+        });
+
+        res.status(200).json({ message: "Senha alterada com sucesso." });
+    } catch (error) {
+        console.error("Erro ao alterar a senha:", error);
+        res.status(500).json({ error: "Erro ao alterar a senha." });
+    }
+});
+
+
+
   export default router
 
