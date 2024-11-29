@@ -15,6 +15,7 @@ const positionSchema = z.object({
 router.get("/", async (req, res) => {
     try {
         const positions = await prisma.position.findMany({
+            where: { deleted: false },
             orderBy: { id: 'desc' },
             select: {
                 id: true,
@@ -50,8 +51,9 @@ router.post("/", verifyToken, async (req, res) => {
 router.delete("/:id", verifyToken, async (req: any, res) => {
     const { id } = req.params
     try {
-        const position = await prisma.position.delete({
-            where: { id: Number(id) }
+        const position = await prisma.position.update({
+            where: { id: Number(id) },
+            data: { deleted: true }
         })
 
         await prisma.log.create({

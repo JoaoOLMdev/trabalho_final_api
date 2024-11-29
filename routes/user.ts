@@ -95,6 +95,58 @@ router.post("/", async (req, res) => {
       res.status(400).json(error)
     }
   })
+
+  router.put("/", async (req, res) => {
+    const { email, oldPassword, newPassword } = req.body;
+    const defaultMessage = "Email ou senha incorretos";
+  
+    if (!email || !oldPassword || !newPassword) {
+      res.status(400).json({ error: "Preencha todos os campos" });
+      return;
+    }
+  
+    try {
+      const user = await prisma.user.findFirst({
+        where: { email }
+      });
+  
+      if (!user) {
+        res.status(400).json({ error: defaultMessage });
+        return;
+      }
+  
+      if (!bcrypt.compareSync(oldPassword, user.password)) {
+        res.status(400).json({ error: defaultMessage });
+        return;
+      }
+  
+      const erros = validatePassword(newPassword);
+      if (erros.length > 0) {
+        res.status(400).json({ error: erros.join("; ") });
+        return;
+      }
+  
+      const salt = bcrypt.genSaltSync(12);
+      const newPasswordHash = bcrypt.hashSync(newPassword, salt);
+  
+      await prisma.user.update({
+        where: { email },
+        data: { password: newPasswordHash }
+      });
+  
+      await prisma.log.create({
+        data: {
+          description: `Alteração de senha bem-sucedida`,
+          complement: `Funcionário: ${user.email}`,
+          userId: user.id
+        }
+      });
+  
+      res.status(200).json({ mensagem: "Senha alterada com sucesso" });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao alterar a senha", detalhes: error });
+    }
+  });
   
   export default router
 
